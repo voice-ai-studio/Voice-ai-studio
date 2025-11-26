@@ -95,7 +95,7 @@
                 <div class="bg-slate-800/80 rounded-xl p-4 border border-slate-700/50">
                     <div class="flex items-center justify-between mb-3">
                         <span class="text-xs font-medium text-indigo-400">Generated Audio</span>
-                        <a id="downloadBtn" href="#" download="voice-ai-audio.mp3" class="text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1">
+                        <a id="downloadBtn" href="#" download="voice-ai-audio.wav" class="text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1">
                             <i class="fa-solid fa-download"></i> Save
                         </a>
                     </div>
@@ -108,9 +108,9 @@
 
     <script>
         // --- APP LOGIC ---
-        // ⬇️⬇️ PASTE YOUR API KEY HERE ⬇️⬇️
-        const apiKey ="AIzaSyCerMGwBZv3MDgYKPlgk4lgLgo3oauXUXM"; 
-        // ⬆️⬆️ PASTE YOUR API KEY HERE ⬆️⬆️
+        // ⬇️⬇️ PASTE YOUR NEW API KEY HERE ⬇️⬇️
+        const apiKey = "AlzaSyCerMGwBZv3MDgYKP|gk4|gLgo30auXUXM"; 
+        // ⬆️⬆️ PASTE YOUR NEW API KEY HERE ⬆️⬆️
 
         let currentAudioUrl = null;
 
@@ -128,6 +128,52 @@
             errorBox: document.getElementById('errorMsg'),
             errorText: document.getElementById('errorText')
         };
+
+        // --- WAV CONVERTER HELPER ---
+        // This function adds a "Header" to the raw audio so iPhone can play it
+        function pcmToWav(pcmData) {
+            const numChannels = 1;
+            const sampleRate = 24000; // Gemini Standard
+            const bitDepth = 16;
+            
+            const bytesPerSample = bitDepth / 8;
+            const blockAlign = numChannels * bytesPerSample;
+            const byteRate = sampleRate * blockAlign;
+            const dataSize = pcmData.length;
+            const bufferSize = 44 + dataSize;
+            
+            const buffer = new ArrayBuffer(bufferSize);
+            const view = new DataView(buffer);
+            
+            // WRITE WAV HEADER
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + dataSize, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true); // Subchunk1Size
+            view.setUint16(20, 1, true); // AudioFormat (1 = PCM)
+            view.setUint16(22, numChannels, true);
+            view.setUint32(24, sampleRate, true);
+            view.setUint32(28, byteRate, true);
+            view.setUint16(32, blockAlign, true);
+            view.setUint16(34, bitDepth, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, dataSize, true);
+            
+            // WRITE PCM DATA
+            const pcmBytes = new Uint8Array(pcmData);
+            const wavBytes = new Uint8Array(buffer);
+            wavBytes.set(pcmBytes, 44);
+            
+            return buffer;
+        }
+
+        function writeString(view, offset, string) {
+            for (let i = 0; i < string.length; i++) {
+                view.setUint8(offset + i, string.charCodeAt(i));
+            }
+        }
+        // ----------------------------
 
         const setLoading = (isLoading) => {
             els.btn.disabled = isLoading;
@@ -160,13 +206,13 @@
             const style = els.tone.value.trim();
 
             if (!text) return showError("Please enter some text first!");
-            if (!apiKey || apiKey === "PUT_YOUR_KEY_HERE") return showError("API Key is missing!");
+            if (!apiKey || apiKey.includes("PASTE")) return showError("API Key is missing!");
 
             setLoading(true);
             els.playerContainer.classList.add('hidden');
 
             try {
-                // We now ask for MP3 format explicitly
+                // Simplified prompt
                 const userPrompt = `Say the following text: "${text}". \n\nStyle instructions: Use a ${voiceName} voice. ${style ? "Tone: " + style : ""}`;
 
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
@@ -177,7 +223,7 @@
                     }],
                     generationConfig: {
                         responseModalities: ["AUDIO"],
-                        responseMimeType: "audio/mp3", // Request MP3 format
+                        // Removed responseMimeType line to fix Error 400
                         speechConfig: {
                             voiceConfig: {
                                 prebuiltVoiceConfig: {
@@ -204,15 +250,17 @@
                 if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].inlineData) {
                     const audioBase64 = data.candidates[0].content.parts[0].inlineData.data;
                     
-                    const byteCharacters = atob(audioBase64);
-                    const byteNumbers = new Array(byteCharacters.length);
-                    for (let i = 0; i < byteCharacters.length; i++) {
-                        byteNumbers[i] = byteCharacters.charCodeAt(i);
+                    // Decode Base64
+                    const binaryString = atob(audioBase64);
+                    const len = binaryString.length;
+                    const bytes = new Uint8Array(len);
+                    for (let i = 0; i < len; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
                     }
-                    const byteArray = new Uint8Array(byteNumbers);
                     
-                    // Set blob type to mp3
-                    const blob = new Blob([byteArray], { type: 'audio/mp3' });
+                    // Convert Raw PCM -> WAV File
+                    const wavBuffer = pcmToWav(bytes);
+                    const blob = new Blob([wavBuffer], { type: 'audio/wav' });
                     
                     if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
                     currentAudioUrl = URL.createObjectURL(blob);
@@ -237,6 +285,7 @@
             }
         });
 
+        // Styles
         const styleSheet = document.createElement("style");
         styleSheet.innerText = `
             @keyframes blob { 0% { transform: translate(0px, 0px) scale(1); } 33% { transform: translate(30px, -50px) scale(1.1); } 66% { transform: translate(-20px, 20px) scale(0.9); } 100% { transform: translate(0px, 0px) scale(1); } }
