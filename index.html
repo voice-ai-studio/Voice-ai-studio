@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>AI Voice Studio</title>
+    
+    <!-- PWA: Theme Colors -->
+    <meta name="theme-color" content="#1f2937">
+    <meta name="background-color" content="#111827">
+
+    <!-- PWA: iOS Specifics -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="AI Voice">
+
+    <!-- PWA: Manifest (Embedded as Data URI) -->
+    <link rel="manifest" id="manifest-placeholder">
+
+    <!-- PWA: Icons (Used for Favicon too) -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiBmaWxsPSIjNGY0NmU1IiBzdHlsZT0iYmFja2dyb3VuZC1jb2xvcjojMWYyOTM3OyBib3JkZXItcmFkaXVzOiAyMCU7Ij48cGF0aCBmaWxsPSIjZmZmIiBkPSJNMjU2IDY0QzIwMy4wNSA2NCAxNjAgMTA3LjA1IDE2MCAxNjBWMzUyQzE2MCA0MDQuOTUgMjAzLjA1IDQ0OCAyNTYgNDQ4QzMwOC45NSA0NDggMzUyIDQwNC45NSAzNTIgMzUyVjE2MEMzNTIgMTA3LjA1IDMwOC45NSA2NCAyNTYgNjR6TTQzMiAzNTJIMzkwLjRDNzg2LjkgMzkyLjkgMzg0IDM5MCAzODQgMzg3LjJWMTI0LjhDMzg0IDEyMiAzODYuOSAxMTkuMSAzOTAuNCAxMjBINCMyQzQzNi40IDEyMCA0NDAgMTIzLjYgNDQwIDEyOFYzNDRDNDQwIDM0OC40IDQzNi40IDM1MiA0MzIgMzUyWk04MCAzNTJDMzguNCAzNTIgMTI4IDMwOC45NSAxMjggMjU2VjE2MEMxMjggMTA3LjA1IDE3MS4wNSA2NCAyMjQgNjRWMzUyQzE3MS4wNSA0NDggMTI4IDQwNC45NSA4MCAzNTJaIiB0cmFuc2Zvcm09InNjYWxlKDAuNykgdHJhbnNsYXRlKDExMCwgMTEwKSIvPjwvc3ZnPg==">
+
+    <!-- Load Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            /* Prevent pull-to-refresh on mobile which feels "webby" */
+            overscroll-behavior-y: none;
+            background-color: #111827;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* Spinner */
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-left-color: #6366f1;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* Custom UI Elements */
+        .glass-panel {
+            background: rgba(31, 41, 55, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        select {
+            background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%239ca3af' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e");
+            background-position: right 0.5rem center;
+            background-repeat: no-repeat;
+            background-size: 1.5em 1.5em;
+            appearance: none;
+        }
+
+        /* Hide scrollbar for clean mobile look */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        /* Mobile safe area spacing */
+        .safe-bottom { padding-bottom: env(safe-area-inset-bottom); }
+    </style>
+</head>
+<body class="text-white h-screen flex flex-col safe-bottom">
+
+    <!-- Top Navigation Bar -->
+    <nav class="glass-panel sticky top-0 z-50 px-4 py-4 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-lg shadow-indigo-500/30">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                </svg>
+            </div>
+            <h1 class="text-lg font-bold tracking-tight">Voice Studio</h1>
+        </div>
+        <!-- Install status indicator (optional visual) -->
+        <div id="installStatus" class="hidden text-xs bg-indigo-900/50 text-indigo-300 px-2 py-1 rounded-full border border-indigo-500/30">
+            App Mode
+        </div>
+    </nav>
+
+    <!-- Main Scrollable Content -->
+    <main class="flex-1 overflow-y-auto p-4 space-y-6 no-scrollbar">
+        
+        <!-- Script Input Section -->
+        <div class="space-y-2">
+            <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider ml-1">Script</label>
+            <textarea id="scriptInput" rows="6" 
+                class="w-full bg-gray-800/50 text-base p-4 rounded-2xl border border-gray-700 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none transition-all resize-none placeholder-gray-600 leading-relaxed shadow-inner" 
+                placeholder="Type something to say..."></textarea>
+        </div>
+
+        <!-- Configuration Cards -->
+        <div class="grid grid-cols-2 gap-3">
+            <!-- Voice Selector -->
+            <div class="space-y-2 col-span-2 sm:col-span-1">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider ml-1">Voice</label>
+                <div class="relative">
+                    <select id="voiceSelect" class="w-full bg-gray-800/80 p-3 rounded-xl border border-gray-700 text-sm focus:border-indigo-500 outline-none shadow-sm">
+                        <option value="Puck">Puck (Upbeat)</option>
+                        <option value="Kore">Kore (Firm)</option>
+                        <option value="Zephyr">Zephyr (Bright)</option>
+                        <option value="Charon">Charon (Deep)</option>
+                        <option value="Fenrir">Fenrir (Fast)</option>
+                        <option value="Aoede">Aoede (Soft)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Accent/Tone -->
+            <div class="space-y-2 col-span-2 sm:col-span-1">
+                <label class="text-xs font-semibold text-gray-400 uppercase tracking-wider ml-1">Tone</label>
+                <input type="text" id="accentPrompt" 
+                    class="w-full bg-gray-800/80 p-3 rounded-xl border border-gray-700 text-sm focus:border-indigo-500 outline-none shadow-sm" 
+                    placeholder="e.g. Whisper, Excited">
+            </div>
+        </div>
+
+        <!-- Audio Player Card (Hidden until generated) -->
+        <div id="audioResult" class="hidden bg-gray-800 rounded-2xl p-4 border border-gray-700 shadow-lg animate-fade-in transition-all">
+            <div class="flex justify-between items-center mb-3">
+                <span class="text-xs font-medium text-green-400 flex items-center gap-1">
+                    <span class="w-2 h-2 rounded-full bg-green-500"></span> Ready to play
+                </span>
+                <button id="downloadBtn" class="text-gray-400 hover:text-white">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4-4m0 0l-4 4m4-4v12" /></svg>
+                </button>
+            </div>
+            <audio id="audioPlayer" controls class="w-full h-10 block"></audio>
+        </div>
+
+        <!-- Spacer for FAB -->
+        <div class="h-24"></div>
+    </main>
+
+    <!-- Error Toast -->
+    <div id="errorToast" class="fixed top-20 left-4 right-4 bg-red-500/90 text-white p-4 rounded-xl shadow-2xl backdrop-blur-sm transform -translate-y-[150%] transition-transform duration-300 z-50 text-sm font-medium flex items-center gap-3">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>
+        <span id="errorMsg">Something went wrong</span>
+    </div>
+
+    <!-- Bottom Floating Action Button (FAB) -->
+    <div class="fixed bottom-6 left-4 right-4 safe-bottom z-40">
+        <button id="generateBtn" class="w-full bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-bold py-4 rounded-2xl shadow-lg shadow-indigo-600/40 flex items-center justify-center gap-2 transition-all transform active:scale-95">
+            <span id="btnText">Generate Audio</span>
+            <div id="btnSpinner" class="spinner hidden"></div>
+        </button>
+    </div>
+
+    <script type="module">
+        // 1. MANIFEST GENERATION (Injects the PWA config dynamically)
+        const iconBase64 = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIiBmaWxsPSIjNGY0NmU1IiBzdHlsZT0iYmFja2dyb3VuZC1jb2xvcjojMWYyOTM3OyBib3JkZXItcmFkaXVzOiAyMCU7Ij48cGF0aCBmaWxsPSIjZmZmIiBkPSJNMjU2IDY0QzIwMy4wNSA2NCAxNjAgMTA3LjA1IDE2MCAxNjBWMzUyQzE2MCA0MDQuOTUgMjAzLjA1IDQ0OCAyNTYgNDQ4QzMwOC45NSA0NDggMzUyIDQwNC45NSAzNTIgMzUyVjE2MEMzNTIgMTA3LjA1IDMwOC45NSA2NCAyNTYgNjR6TTQzMiAzNTJIMzkwLjRDNzg2LjkgMzkyLjkgMzg0IDM5MCAzODQgMzg3LjJWMTI0LjhDMzg0IDEyMiAzODYuOSAxMTkuMSAzOTAuNCAxMjBINCMyQzQzNi40IDEyMCA0NDAgMTIzLjYgNDQwIDEyOFYzNDRDNDQwIDM0OC40IDQzNi40IDM1MiA0MzIgMzUyWk04MCAzNTJDMzguNCAzNTIgMTI4IDMwOC45NSAxMjggMjU2VjE2MEMxMjggMTA3LjA1IDE3MS4wNSA2NCAyMjQgNjRWMzUyQzE3MS4wNSA0NDggMTI4IDQwNC45NSA4MCAzNTJaIiB0cmFuc2Zvcm09InNjYWxlKDAuNykgdHJhbnNsYXRlKDExMCwgMTEwKSIvPjwvc3ZnPg==";
+        
+        const manifest = {
+            "name": "AI Voice Studio",
+            "short_name": "AI Voice",
+            "start_url": ".",
+            "display": "standalone",
+            "background_color": "#111827",
+            "theme_color": "#1f2937",
+            "orientation": "portrait",
+            "icons": [
+                { "src": iconBase64, "sizes": "192x192", "type": "image/svg+xml" },
+                { "src": iconBase64, "sizes": "512x512", "type": "image/svg+xml" }
+            ]
+        };
+        
+        const stringManifest = JSON.stringify(manifest);
+        const blob = new Blob([stringManifest], {type: 'application/json'});
+        const manifestURL = URL.createObjectURL(blob);
+        document.querySelector('#manifest-placeholder').setAttribute('href', manifestURL);
+
+        // 2. SERVICE WORKER (Enables "Add to Home Screen" installation)
+        if ('serviceWorker' in navigator) {
+            const swContent = `
+                self.addEventListener('install', (e) => {
+                    self.skipWaiting();
+                });
+                self.addEventListener('activate', (e) => {
+                    return self.clients.claim();
+                });
+                self.addEventListener('fetch', (e) => {
+                    e.respondWith(fetch(e.request));
+                });
+            `;
+            const swBlob = new Blob([swContent], {type: 'application/javascript'});
+            const swUrl = URL.createObjectURL(swBlob);
+            navigator.serviceWorker.register(swUrl)
+                .then(() => console.log('SW Registered'))
+                .catch(err => console.log('SW Error:', err));
+        }
+
+        // --- APP LOGIC ---
+        const apiKey = ""; // ⚠️ Insert API Key Here
+        let currentAudioUrl = null;
+
+        const els = {
+            script: document.getElementById('scriptInput'),
+            voice: document.getElementById('voiceSelect'),
+            tone: document.getElementById('accentPrompt'),
+            btn: document.getElementById('generateBtn'),
+            btnText: document.getElementById('btnText'),
+            btnSpinner: document.getElementById('btnSpinner'),
+            resultBox: document.getElementById('audioResult'),
+            player: document.getElementById('audioPlayer'),
+            download: document.getElementById('downloadBtn'),
+            errorToast: document.getElementById('errorToast'),
+            errorMsg: document.getElementById('errorMsg')
+        };
+
+        // UI Helpers
+        const showLoading = (isLoading) => {
+            els.btn.disabled = isLoading;
+            els.btn.classList.toggle('opacity-75', isLoading);
+            if(isLoading) {
+                els.btnText.textContent = "Processing...";
+                els.btnSpinner.classList.remove('hidden');
+            } else {
+                els.btnText.textContent = "Generate Audio";
+                els.btnSpinner.classList.add('hidden');
+            }
+        };
+
+        const showError = (msg) => {
+            els.errorMsg.textContent = msg;
+            els.errorToast.style.transform = "translateY(0)";
+            setTimeout(() => {
+                els.errorToast.style.transform = "translateY(-150%)";
+            }, 4000);
+        };
+
+        // Main Logic
+        els.btn.addEventListener('click', async () => {
+            const text = els.script.value.trim();
+            if(!text) {
+                showError("Please enter some text first");
+                els.script.focus();
+                return;
+            }
+
+            showLoading(true);
+            els.resultBox.classList.add('hidden');
+
+            try {
+                // Construct Prompt
+                let finalPrompt = text;
+                const tone = els.tone.value.trim();
+                if(tone) finalPrompt = `Say in a ${tone} tone: ${text}`;
+
+                const response = await fetchWithRetry(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`, {
+                    contents: [{ parts: [{ text: finalPrompt }] }],
+                    generationConfig: {
+                        responseModalities: ["AUDIO"],
+                        speechConfig: {
+                            voiceConfig: {
+                                prebuiltVoiceConfig: { voiceName: els.voice.value }
+                            }
+                        }
+                    }
+                });
+
+                const data = await response.json();
+                
+                if(data.error) throw new Error(data.error.message);
+                if(!data.candidates?.[0]?.content?.parts?.[0]?.inlineData) throw new Error("No audio generated");
+
+                // Process Audio
+                const base64Audio = data.candidates[0].content.parts[0].inlineData.data;
+                const mime = data.candidates[0].content.parts[0].inlineData.mimeType;
+                
+                // Decode & Play
+                const wavBlob = processAudio(base64Audio, mime);
+                if(currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
+                currentAudioUrl = URL.createObjectURL(wavBlob);
+                
+                els.player.src = currentAudioUrl;
+                els.resultBox.classList.remove('hidden');
+                
+                // Auto play on mobile often requires user interaction, but we'll try
+                try { await els.player.play(); } catch(e) {}
+
+            } catch (err) {
+                showError(err.message || "Generation failed");
+            } finally {
+                showLoading(false);
+            }
+        });
+
+        els.download.addEventListener('click', () => {
+            if(!currentAudioUrl) return;
+            const a = document.createElement('a');
+            a.href = currentAudioUrl;
+            a.download = `voice-${Date.now()}.wav`;
+            a.click();
+        });
+
+        // Retry Logic
+        async function fetchWithRetry(url, payload) {
+            let delay = 1000;
+            for(let i=0; i<3; i++) {
+                try {
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(payload)
+                    });
+                    if(res.ok) return res;
+                    if(res.status >= 500 || res.status === 429) {
+                        await new Promise(r => setTimeout(r, delay));
+                        delay *= 2;
+                        continue;
+                    }
+                    return res;
+                } catch(e) {
+                    if(i===2) throw e;
+                    await new Promise(r => setTimeout(r, delay));
+                }
+            }
+        }
+
+        // Audio Processing (PCM -> WAV)
+        function processAudio(base64, mimeType) {
+            const binaryString = atob(base64);
+            const bytes = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+            
+            // If it's raw PCM, convert to WAV. If API updates to return MP3/WAV, handle here.
+            // Currently assuming Gemini returns L16 (PCM)
+            const sampleRate = mimeType.includes('rate=') ? parseInt(mimeType.split('rate=')[1]) : 24000;
+            return pcmToWav(new Int16Array(bytes.buffer), sampleRate);
+        }
+
+        function pcmToWav(pcm, rate) {
+            const buffer = new ArrayBuffer(44 + pcm.length * 2);
+            const view = new DataView(buffer);
+            const writeString = (view, offset, str) => {
+                for (let i = 0; i < str.length; i++) view.setUint8(offset + i, str.charCodeAt(i));
+            };
+
+            writeString(view, 0, 'RIFF');
+            view.setUint32(4, 36 + pcm.length * 2, true);
+            writeString(view, 8, 'WAVE');
+            writeString(view, 12, 'fmt ');
+            view.setUint32(16, 16, true);
+            view.setUint16(20, 1, true);
+            view.setUint16(22, 1, true);
+            view.setUint32(24, rate, true);
+            view.setUint32(28, rate * 2, true);
+            view.setUint16(32, 2, true);
+            view.setUint16(34, 16, true);
+            writeString(view, 36, 'data');
+            view.setUint32(40, pcm.length * 2, true);
+
+            const offset = 44;
+            for (let i = 0; i < pcm.length; i++) {
+                view.setInt16(offset + i * 2, pcm[i], true);
+            }
+            return new Blob([view], { type: 'audio/wav' });
+        }
+        
+        // Check for standalone mode
+        if (window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true) {
+            document.getElementById('installStatus').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
+
