@@ -11,11 +11,6 @@
         body { font-family: 'Inter', sans-serif; background-color: #0f172a; color: #e2e8f0; }
         .glass-panel { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(12px); border: 1px solid rgba(255, 255, 255, 0.1); }
         .input-focus:focus { outline: none; border-color: #6366f1; ring: 2px; ring-color: rgba(99, 102, 241, 0.2); }
-        /* Custom Scrollbar */
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #0f172a; }
-        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #475569; }
     </style>
 </head>
 <body class="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden">
@@ -40,7 +35,7 @@
             <div class="h-2 w-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
         </div>
 
-        <!-- Error Banner (Hidden by default) -->
+        <!-- Error Banner -->
         <div id="errorMsg" class="hidden mb-4 bg-red-500/10 border border-red-500/50 text-red-200 px-4 py-3 rounded-lg text-sm flex items-start gap-3">
             <i class="fa-solid fa-circle-exclamation mt-0.5 text-red-500"></i>
             <span id="errorText">Something went wrong</span>
@@ -100,7 +95,7 @@
                 <div class="bg-slate-800/80 rounded-xl p-4 border border-slate-700/50">
                     <div class="flex items-center justify-between mb-3">
                         <span class="text-xs font-medium text-indigo-400">Generated Audio</span>
-                        <a id="downloadBtn" href="#" download="voice-ai-audio.wav" class="text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1">
+                        <a id="downloadBtn" href="#" download="voice-ai-audio.mp3" class="text-xs text-slate-400 hover:text-white transition-colors flex items-center gap-1">
                             <i class="fa-solid fa-download"></i> Save
                         </a>
                     </div>
@@ -113,9 +108,9 @@
 
     <script>
         // --- APP LOGIC ---
-        // ⬇️⬇️ THIS IS THE CORRECT WAY TO PLACE THE KEY ⬇️⬇️
-        const apiKey = "AIzaSyDhWwg2JXaU6YI1Dg4c5Vo_spCUzKz5qUo"; 
-        // ⬆️⬆️ DO NOT EDIT THIS LINE ⬆️⬆️
+        // ⬇️⬇️ PASTE YOUR API KEY HERE ⬇️⬇️
+        const apiKey = "AlzaSyDhWwg2JXaU6YIDg4c5Vo_spCUzKz5qUo"; 
+        // ⬆️⬆️ PASTE YOUR API KEY HERE ⬆️⬆️
 
         let currentAudioUrl = null;
 
@@ -134,7 +129,6 @@
             errorText: document.getElementById('errorText')
         };
 
-        // Helper to show/hide loading state
         const setLoading = (isLoading) => {
             els.btn.disabled = isLoading;
             if (isLoading) {
@@ -151,34 +145,30 @@
             }
         };
 
-        // Helper to show error
         const showError = (msg) => {
             console.error(msg);
             els.errorText.textContent = msg;
             els.errorBox.classList.remove('hidden');
             els.errorBox.classList.add('animate-pulse');
             setTimeout(() => els.errorBox.classList.remove('animate-pulse'), 500);
-            
-            // Alert user on mobile so they see the error
             alert("Error: " + msg);
         };
 
-        // Main Generation Function
         els.btn.addEventListener('click', async () => {
             const text = els.script.value.trim();
             const voiceName = els.voice.value;
             const style = els.tone.value.trim();
 
             if (!text) return showError("Please enter some text first!");
-            
+            if (!apiKey || apiKey === "PUT_YOUR_KEY_HERE") return showError("API Key is missing!");
+
             setLoading(true);
             els.playerContainer.classList.add('hidden');
 
             try {
-                // Construct the prompt for the model
+                // We now ask for MP3 format explicitly
                 const userPrompt = `Say the following text: "${text}". \n\nStyle instructions: Use a ${voiceName} voice. ${style ? "Tone: " + style : ""}`;
 
-                // Call Google Gemini API (TTS capability)
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
                 
                 const payload = {
@@ -187,6 +177,7 @@
                     }],
                     generationConfig: {
                         responseModalities: ["AUDIO"],
+                        responseMimeType: "audio/mp3", // Request MP3 format
                         speechConfig: {
                             voiceConfig: {
                                 prebuiltVoiceConfig: {
@@ -219,7 +210,9 @@
                         byteNumbers[i] = byteCharacters.charCodeAt(i);
                     }
                     const byteArray = new Uint8Array(byteNumbers);
-                    const blob = new Blob([byteArray], { type: 'audio/wav' });
+                    
+                    // Set blob type to mp3
+                    const blob = new Blob([byteArray], { type: 'audio/mp3' });
                     
                     if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
                     currentAudioUrl = URL.createObjectURL(blob);
@@ -234,7 +227,7 @@
                         console.log("Auto-play blocked, user must click play");
                     }
                 } else {
-                    throw new Error("No audio data received from AI. Try a different prompt.");
+                    throw new Error("No audio data received. Try a shorter script.");
                 }
 
             } catch (error) {
@@ -244,7 +237,6 @@
             }
         });
 
-        // Add some basic animation styles
         const styleSheet = document.createElement("style");
         styleSheet.innerText = `
             @keyframes blob { 0% { transform: translate(0px, 0px) scale(1); } 33% { transform: translate(30px, -50px) scale(1.1); } 66% { transform: translate(-20px, 20px) scale(0.9); } 100% { transform: translate(0px, 0px) scale(1); } }
