@@ -13,6 +13,7 @@
         .input-focus:focus { outline: none; border-color: #6366f1; ring: 2px; ring-color: rgba(99, 102, 241, 0.2); }
     </style>
 </head>
+
 <body class="min-h-screen flex flex-col items-center justify-center p-4 relative overflow-hidden">
 
     <!-- Background Gradients -->
@@ -62,12 +63,20 @@
                 <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Voice Model</label>
                 <div class="relative">
                     <select id="voiceSelect" class="w-full bg-slate-800/50 border border-slate-700 rounded-xl p-3 pl-4 pr-10 text-sm text-slate-200 appearance-none input-focus cursor-pointer transition-all hover:bg-slate-800/80">
+                        
+                        <!-- Original Voices -->
                         <option value="Zephyr">Zephyr (Bright & Balanced)</option>
                         <option value="Puck">Puck (Energetic)</option>
                         <option value="Charon">Charon (Deep & Authoritative)</option>
                         <option value="Kore">Kore (Calm & Soothing)</option>
                         <option value="Fenrir">Fenrir (Intense)</option>
                         <option value="Aoede">Aoede (Soft & Gentle)</option>
+
+                        <!-- NEW SPECIAL VOICES -->
+                        <option value="StoryNarrator">Story Narrator</option>
+                        <option value="Grandpa">Grandpa Voice</option>
+                        <option value="DeepVoice">Deep Voice</option>
+
                     </select>
                     <div class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none">
                         <i class="fa-solid fa-chevron-down text-xs"></i>
@@ -90,7 +99,7 @@
                 <div id="btnSpinner" class="hidden h-4 w-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
             </button>
 
-            <!-- Audio Player (Hidden initially) -->
+            <!-- Audio Player -->
             <div id="audioPlayerContainer" class="hidden pt-2 animate-fade-in">
                 <div class="bg-slate-800/80 rounded-xl p-4 border border-slate-700/50">
                     <div class="flex items-center justify-between mb-3">
@@ -107,7 +116,6 @@
     </div>
 
     <script>
-        // NO API KEY HERE ANYMORE
 
         let currentAudioUrl = null;
 
@@ -126,21 +134,19 @@
             errorText: document.getElementById('errorText')
         };
 
-        // --- WAV CONVERTER HELPER ---
+        /* WAV ENCODER */
         function pcmToWav(pcmData) {
             const numChannels = 1;
             const sampleRate = 24000;
             const bitDepth = 16;
-            
             const bytesPerSample = bitDepth / 8;
             const blockAlign = numChannels * bytesPerSample;
             const byteRate = sampleRate * blockAlign;
             const dataSize = pcmData.length;
             const bufferSize = 44 + dataSize;
-            
             const buffer = new ArrayBuffer(bufferSize);
             const view = new DataView(buffer);
-            
+
             writeString(view, 0, 'RIFF');
             view.setUint32(4, 36 + dataSize, true);
             writeString(view, 8, 'WAVE');
@@ -154,11 +160,8 @@
             view.setUint16(34, bitDepth, true);
             writeString(view, 36, 'data');
             view.setUint32(40, dataSize, true);
-            
-            const pcmBytes = new Uint8Array(pcmData);
-            const wavBytes = new Uint8Array(buffer);
-            wavBytes.set(pcmBytes, 44);
-            
+
+            new Uint8Array(buffer).set(new Uint8Array(pcmData), 44);
             return buffer;
         }
 
@@ -168,6 +171,7 @@
             }
         }
 
+        /* UI State */
         const setLoading = (isLoading) => {
             els.btn.disabled = isLoading;
             if (isLoading) {
@@ -193,7 +197,7 @@
             alert("Error: " + msg);
         };
 
-        // MAIN BUTTON HANDLER – now calls Netlify backend
+        /* Generate Audio */
         els.btn.addEventListener('click', async () => {
             const text = els.script.value.trim();
             const voiceName = els.voice.value;
@@ -205,7 +209,6 @@
             els.playerContainer.classList.add('hidden');
 
             try {
-                // Call Netlify Function instead of Google directly
                 const response = await fetch('/.netlify/functions/generate-audio', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -215,54 +218,54 @@
                 const data = await response.json();
 
                 if (!response.ok) {
-                    const errorDetails = data.error || "Unknown server error";
-                    throw new Error(`API Error (${response.status}): ${errorDetails}`);
+                    throw new Error(`API Error: ${data.error || 'Unknown error'}`);
                 }
 
-                const audioBase64 = data.audioBase64;
-                if (!audioBase64) {
-                    throw new Error("No audio data received. Try a shorter script.");
-                }
+                const binaryString = atob(data.audioBase64);
+                const bytes = new Uint8Array(binaryString.length);
 
-                const binaryString = atob(audioBase64);
-                const len = binaryString.length;
-                const bytes = new Uint8Array(len);
-                for (let i = 0; i < len; i++) {
+                for (let i = 0; i < binaryString.length; i++) {
                     bytes[i] = binaryString.charCodeAt(i);
                 }
-                
+
                 const wavBuffer = pcmToWav(bytes);
                 const blob = new Blob([wavBuffer], { type: 'audio/wav' });
-                
+
                 if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
                 currentAudioUrl = URL.createObjectURL(blob);
 
                 els.player.src = currentAudioUrl;
                 els.download.href = currentAudioUrl;
                 els.playerContainer.classList.remove('hidden');
-                
-                try {
-                    await els.player.play();
-                } catch (e) {
-                    console.log("Auto-play blocked, user must click play");
-                }
 
-            } catch (error) {
-                showError(error.message);
+                try { await els.player.play(); } catch {}
+
+            } catch (err) {
+                showError(err.message);
             } finally {
                 setLoading(false);
             }
         });
 
+        /* Animations */
         const styleSheet = document.createElement("style");
         styleSheet.innerText = `
-            @keyframes blob { 0% { transform: translate(0px, 0px) scale(1); } 33% { transform: translate(30px, -50px) scale(1.1); } 66% { transform: translate(-20px, 20px) scale(0.9); } 100% { transform: translate(0px, 0px) scale(1); } }
+            @keyframes blob { 
+                0% { transform: translate(0px, 0px) scale(1); } 
+                33% { transform: translate(30px, -50px) scale(1.1); } 
+                66% { transform: translate(-20px, 20px) scale(0.9); } 
+                100% { transform: translate(0px, 0px) scale(1); } 
+            }
             .animate-blob { animation: blob 7s infinite; }
             .animation-delay-2000 { animation-delay: 2s; }
             .animate-fade-in { animation: fadeIn 0.5s ease-out; }
-            @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+            @keyframes fadeIn { 
+                from { opacity: 0; transform: translateY(10px); } 
+                to { opacity: 1; transform: translateY(0); } 
+            }
         `;
         document.head.appendChild(styleSheet);
+
     </script>
 </body>
 </html>
