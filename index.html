@@ -75,8 +75,8 @@
                 </div>
             </div>
 
-             <!-- Tone/Style Input -->
-             <div class="space-y-2">
+            <!-- Tone/Style Input -->
+            <div class="space-y-2">
                 <label class="text-xs font-semibold text-slate-400 uppercase tracking-wider ml-1">Tone & Style</label>
                 <input id="accentPrompt" type="text" 
                     class="w-full bg-slate-800/50 border border-slate-700 rounded-xl p-3 text-sm text-slate-200 placeholder-slate-500 input-focus transition-all hover:bg-slate-800/80"
@@ -107,10 +107,8 @@
     </div>
 
     <script>
-        // --- APP LOGIC ---
-        // TRANSCRIBED DIRECTLY FROM YOUR SCREENSHOT:
-        const apiKey = "AIzaSyCerMGwBZv3MDgYKPlgK4lgLgo30auXUXM"; 
-        
+        // NO API KEY HERE ANYMORE
+
         let currentAudioUrl = null;
 
         const els = {
@@ -195,78 +193,58 @@
             alert("Error: " + msg);
         };
 
+        // MAIN BUTTON HANDLER – now calls Netlify backend
         els.btn.addEventListener('click', async () => {
             const text = els.script.value.trim();
             const voiceName = els.voice.value;
             const style = els.tone.value.trim();
 
             if (!text) return showError("Please enter some text first!");
-            if (!apiKey || apiKey.includes("PASTE")) return showError("API Key is missing!");
 
             setLoading(true);
             els.playerContainer.classList.add('hidden');
 
             try {
-                const userPrompt = `Say the following text: "${text}". \n\nStyle instructions: Use a ${voiceName} voice. ${style ? "Tone: " + style : ""}`;
-
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
-                
-                const payload = {
-                    contents: [{
-                        parts: [{ text: userPrompt }]
-                    }],
-                    generationConfig: {
-                        responseModalities: ["AUDIO"],
-                        speechConfig: {
-                            voiceConfig: {
-                                prebuiltVoiceConfig: {
-                                    voiceName: voiceName
-                                }
-                            }
-                        }
-                    }
-                };
-
-                const response = await fetch(url, {
+                // Call Netlify Function instead of Google directly
+                const response = await fetch('/.netlify/functions/generate-audio', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
+                    body: JSON.stringify({ text, voiceName, style })
                 });
 
                 const data = await response.json();
 
                 if (!response.ok) {
-                    const errorDetails = data.error ? data.error.message : "Unknown API Error";
-                    throw new Error(`Google API Error (${response.status}): ${errorDetails}`);
+                    const errorDetails = data.error || "Unknown server error";
+                    throw new Error(`API Error (${response.status}): ${errorDetails}`);
                 }
 
-                if (data.candidates && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0].inlineData) {
-                    const audioBase64 = data.candidates[0].content.parts[0].inlineData.data;
-                    
-                    const binaryString = atob(audioBase64);
-                    const len = binaryString.length;
-                    const bytes = new Uint8Array(len);
-                    for (let i = 0; i < len; i++) {
-                        bytes[i] = binaryString.charCodeAt(i);
-                    }
-                    
-                    const wavBuffer = pcmToWav(bytes);
-                    const blob = new Blob([wavBuffer], { type: 'audio/wav' });
-                    
-                    if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
-                    currentAudioUrl = URL.createObjectURL(blob);
-
-                    els.player.src = currentAudioUrl;
-                    els.download.href = currentAudioUrl;
-                    els.playerContainer.classList.remove('hidden');
-                    
-                    try {
-                        await els.player.play();
-                    } catch (e) {
-                        console.log("Auto-play blocked, user must click play");
-                    }
-                } else {
+                const audioBase64 = data.audioBase64;
+                if (!audioBase64) {
                     throw new Error("No audio data received. Try a shorter script.");
+                }
+
+                const binaryString = atob(audioBase64);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                
+                const wavBuffer = pcmToWav(bytes);
+                const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+                
+                if (currentAudioUrl) URL.revokeObjectURL(currentAudioUrl);
+                currentAudioUrl = URL.createObjectURL(blob);
+
+                els.player.src = currentAudioUrl;
+                els.download.href = currentAudioUrl;
+                els.playerContainer.classList.remove('hidden');
+                
+                try {
+                    await els.player.play();
+                } catch (e) {
+                    console.log("Auto-play blocked, user must click play");
                 }
 
             } catch (error) {
@@ -288,5 +266,3 @@
     </script>
 </body>
 </html>
-
-
