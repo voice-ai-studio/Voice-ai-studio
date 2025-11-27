@@ -1,98 +1,130 @@
-// Netlify Function: generate-audio
-// It will live at /.netlify/functions/generate-audio
+// Netlify Function: generate-audio using OpenAI TTS
+// URL: /.netlify/functions/generate-audio
 
-exports.handler = async (event, context) => {
+exports.handler = async (event) => {
   try {
+    // Only allow POST
     if (event.httpMethod !== 'POST') {
-      return {
-        statusCode: 405,
-        body: JSON.stringify({ error: 'Method not allowed' })
-      };
+      return { statusCode: 405, body: "Method not allowed" };
     }
 
-    const { text, voiceName, style } = JSON.parse(event.body || '{}');
+    // Read JSON from client
+    const { text, voiceName, style } = JSON.parse(event.body || "{}");
 
-    if (!text || !voiceName) {
+    if (!text) {
       return {
         statusCode: 400,
-        body: JSON.stringify({ error: 'Missing text or voiceName' })
+        body: JSON.stringify({ error: "Missing text" })
       };
     }
 
-    const apiKey = process.env.GOOGLE_API_KEY;
+    // Get OpenAI key from Netlify environment variables
+    const apiKey = process.env.OPENAI_API_KEY;
     if (!apiKey) {
       return {
         statusCode: 500,
-        body: JSON.stringify({ error: 'Server misconfigured: no API key' })
+        body: JSON.stringify({ error: "Missing OPENAI_API_KEY env var" })
       };
     }
 
-    const userPrompt =
-      `Say the following text: "${text}".\n\n` +
-      `Style instructions: Use a ${voiceName} voice. ` +
-      (style ? `Tone: ${style}` : '');
+    // Voice mapping (your UI → OpenAI voices)
+    const openAIVoiceMap = {
+      Zephyr: "nova",         // bright & balanced narrator
+      Puck: "alloy",          // energetic
+      Charon: "coral",        // deep & dramatic
+      Kore: "verse",          // calm & soft
+      Fenrir: "alloy",        // intense
+      Aoede: "verse",         // gentle bedtime narrator
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/` +
-                `gemini-2.5-flash-preview-tts:generateContent?key=${apiKey}`;
-
-    const payload = {
-      contents: [{
-        parts: [{ text: userPrompt }]
-      }],
-      generationConfig: {
-        responseModalities: ["AUDIO"],
-        speechConfig: {
-          voiceConfig: {
-            prebuiltVoiceConfig: {
-              voiceName: voiceName
-            }
-          }
-        }
-      }
+      // EXTRA VOICES
+      StoryNarrator: "nova",
+      Grandpa: "coral",
+      DeepVoice: "coral"
     };
 
-    // Netlify functions on Node 18+ have global fetch
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
+    // Pick voice (default alloy)
+    const selectedVoice = openAIVoiceMap[voiceName] || "alloy";
+
+    // Automatic style hints for each voice
+    let styleHint = "";
+
+    switch (voiceName) {
+      case "Grandpa":
+        styleHint = "old wise grandfather, warm, slow, gentle.";
+        break;
+      case "StoryNarrator":
+        styleHint = "cinematic story narrator, clear, expressive, engaging pacing.";
+        break;
+      case "DeepVoice":
+      case "Charon":
+        styleHint = "very deep, resonant, dramatic broadcast voice.";
+        break;
+      case "Kore":
+        styleHint = "calm, soothing, peaceful voice.";
+        break;
+      case "Fenrir":
+        styleHint = "intense, strong, powerful emphasis.";
+        break;
+      case "Aoede":
+        styleHint = "soft, gentle bedtime storyteller.";
+        break;
+      case "Zephyr":
+      case "Puck":
+        styleHint = "bright, lively, modern narrator.";
+        break;
+      default:
+        styleHint = "";
+    }
+
+    // Merge user style + automatic voice style
+    let combinedStyle = "";
+    if (style && styleHint) combinedStyle = `${style}; ${styleHint}`;
+    else if (style) combinedStyle = style;
+    else if (styleHint) combinedStyle = styleHint;
+
+    const finalInput = combinedStyle
+      ? `${text}\n\n[Read this with tone: ${combinedStyle}]`
+      : text;
+
+    // Call OpenAI speech API
+    const response = await fetch("https://api.openai.com/v1/audio/speech", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini-tts",
+        voice: selectedVoice,
+        input: finalInput,
+        format: "wav"
+      })
     });
 
-    const data = await resp.json();
-
-    if (!resp.ok) {
-      const msg = data.error ? data.error.message : 'Unknown Google API error';
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error("OpenAI error:", errorText);
       return {
-        statusCode: resp.status,
-        body: JSON.stringify({ error: msg })
+        statusCode: response.status,
+        body: JSON.stringify({ error: errorText })
       };
     }
 
-    const parts = data?.candidates?.[0]?.content?.parts;
-    const inlineData = parts?.[0]?.inlineData;
+    // Convert output WAV → base64 for frontend
+    const buffer = Buffer.from(await response.arrayBuffer());
+    const base64Audio = buffer.toString("base64");
 
-    if (!inlineData || !inlineData.data) {
-      return {
-        statusCode: 500,
-        body: JSON.stringify({ error: 'No audio data returned from Google' })
-      };
-    }
-
-    // Send base64 audio back to browser
     return {
       statusCode: 200,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*'
-      },
-      body: JSON.stringify({ audioBase64: inlineData.data })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ audioBase64: base64Audio })
     };
 
   } catch (err) {
     console.error(err);
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: 'Server error: ' + err.message })
+      body: JSON.stringify({ error: err.toString() })
     };
   }
 };
